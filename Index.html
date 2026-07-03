@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Firebase Engine Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #121214;
+            --panel-bg: #1a1a1e;
+            --primary: #f59e0b;
+            --text: #ffffff;
+            --text-muted: #a1a1aa;
+            --border: #2e2e33;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Setup Screen Overlay */
+        #setup-screen {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            text-align: center;
+        }
+
+        .btn {
+            background-color: var(--primary);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn:hover { opacity: 0.9; }
+
+        /* Main Dashboard Layout */
+        #dashboard {
+            display: none;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Sidebar Nav */
+        .sidebar {
+            width: 260px;
+            background-color: var(--panel-bg);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .folder-info {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+            word-break: break-all;
+        }
+
+        .nav-item {
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 8px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background-color: var(--border);
+            color: var(--text);
+        }
+
+        /* Main View Window */
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        h2 { margin-top: 0; color: var(--primary); }
+        
+        .card {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        pre {
+            background: #09090b;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+        }
+
+        textarea {
+            width: 100%;
+            height: 150px;
+            background: #09090b;
+            color: #4ade80;
+            font-family: monospace;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Connection Gateway Screen -->
+    <div id="setup-screen">
+        <h1 style="color: var(--primary); font-size: 2.5rem; margin-bottom: 10px;">Local Database Core</h1>
+        <p style="color: var(--text-muted); margin-bottom: 30px; max-width: 450px;">
+            Select a dedicated local directory folder to act as your persistent Realtime Database and Cloud Storage vault.
+        </p>
+        <button class="btn" id="btn-connect">Initialize / Choose Folder</button>
+    </div>
+
+    <!-- Main Workspace Dashboard -->
+    <div id="dashboard">
+        <div class="sidebar">
+            <div style="font-weight: bold; font-size: 18px; margin-bottom: 5px;">AR DIGITAL Core</div>
+            <div class="folder-info" id="active-folder-display">Folder: None</div>
+            
+            <div class="nav-item active" onclick="switchTab('db-tab', this)">Realtime Database</div>
+            <div class="nav-item" onclick="switchTab('storage-tab', this)">Storage Vault</div>
+            <div class="nav-item" onclick="switchTab('settings-tab', this)">Configuration API</div>
+        </div>
+
+        <div class="main-content">
+            <!-- Realtime Database View -->
+            <div id="db-tab" class="tab-panel active">
+                <h2>Realtime Database (database.json)</h2>
+                <div class="card">
+                    <p style="color: var(--text-muted); margin-top:0;">Modify your JSON collections directly below. Press save to sync changes directly into your local folder.</p>
+                    <textarea id="db-editor">{}</textarea>
+                    <div style="margin-top: 15px; display: flex; gap: 10px;">
+                        <button class="btn" onclick="saveDatabaseFile()">Save Changes</button>
+                        <button class="btn" style="background:#27272a; color:white;" onclick="loadDatabaseFile()">Reload From Folder</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Storage Panel View -->
+            <div id="storage-tab" class="tab-panel">
+                <h2>Storage Vault</h2>
+                <div class="card">
+                    <p style="color: var(--text-muted); margin-top:0;">Simulated Cloud Storage. Files uploaded here are saved directly into your local database folder root.</p>
+                    <input type="file" id="storage-uploader" style="margin-bottom: 15px; display: block;">
+                    <button class="btn" onclick="uploadToStorage()">Upload File To Folder</button>
+                    <div id="storage-status" style="margin-top: 15px; color: #4ade80;"></div>
+                </div>
+            </div>
+
+            <!-- Config / Settings View -->
+            <div id="settings-tab" class="tab-panel">
+                <h2>Web Configuration Settings</h2>
+                <div class="card">
+                    <p style="color: var(--text-muted); margin-top:0;">This unique configurations key is strictly bound to this directory folder. If you choose this folder again, the key will stay the same.</p>
+                    <h3>Your App Config Keys</h3>
+                    <pre><code id="config-display">// Connect folder to generate configuration...</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let folderHandle = null;
+        let uniqueApiKey = "";
+
+        document.getElementById('btn-connect').addEventListener('click', async () => {
+            try {
+                // Open native browser directory picker
+                folderHandle = await window.showDirectoryPicker({
+                    mode: 'readwrite'
+                });
+
+                // Generate or load unique API Key derived uniquely from folder name
+                uniqueApiKey = "lf_key_" + btoa(folderHandle.name).replace(/=/g, '').toLowerCase().substring(0, 16);
+
+                // Update UI layout
+                document.getElementById('setup-screen').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'flex';
+                document.getElementById('active-folder-display').innerText = `Folder: 📂 ${folderHandle.name}`;
+
+                // Render configuration data
+                renderConfig();
+
+                // Instantly sync layout data
+                await loadDatabaseFile();
+
+            } catch (err) {
+                console.error("Directory selection was aborted or rejected.", err);
+                alert("Permission required to access file directory storage.");
+            }
+        });
+
+        // Tab Switching Engine
+        function switchTab(tabId, element) {
+            document.querySelectorAll('.tab-panel').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            element.classList.add('active');
+        }
+
+        // Render configuration code strings
+        function renderConfig() {
+            const configurationObject = {
+                apiKey: uniqueApiKey,
+                authDomain: `local-engine://${folderHandle.name}`,
+                storageBucket: `./${folderHandle.name}/storage`
+            };
+            document.getElementById('config-display').innerText = JSON.stringify(configurationObject, null, 4);
+        }
+
+        // Fetch or create database.json dynamically
+        async function loadDatabaseFile() {
+            if (!folderHandle) return;
+            try {
+                const fileHandle = await folderHandle.getFileHandle('database.json', { create: true });
+                const file = await fileHandle.getFile();
+                const content = await file.text();
+                
+                document.getElementById('db-editor').value = content ? content : JSON.stringify({ "users": {}, "posts": {} }, null, 4);
+            } catch (error) {
+                alert("Error loading internal database file schema.");
+            }
+        }
+
+        // Write modifications back down to internal system
+        async function saveDatabaseFile() {
+            if (!folderHandle) return;
+            try {
+                const rawData = document.getElementById('db-editor').value;
+                // Validation testing
+                JSON.parse(rawData);
+
+                const fileHandle = await folderHandle.getFileHandle('database.json', { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(rawData);
+                await writable.close();
+                alert("Database successfully written directly to your directory changes!");
+            } catch (err) {
+                alert("Invalid JSON format structural configuration. Double check commas and syntax strings.");
+            }
+        }
+
+        // Save binary file drops down to file system targets
+        async function uploadToStorage() {
+            if (!folderHandle) return;
+            const fileInput = document.getElementById('storage-uploader');
+            if (fileInput.files.length === 0) {
+                alert("Select a valid local system item asset file first.");
+                return;
+            }
+
+            const activeTargetFile = fileInput.files[0];
+            try {
+                const fileHandle = await folderHandle.getFileHandle(activeTargetFile.name, { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(activeTargetFile);
+                await writable.close();
+
+                document.getElementById('storage-status').innerText = `File "${activeTargetFile.name}" written inside root directory safely!`;
+                fileInput.value = "";
+            } catch (err) {
+                alert("Error copying resource file direct tracking to disk paths.");
+            }
+        }
+    </script>
+</body>
+</html>
